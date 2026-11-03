@@ -1,0 +1,15 @@
+{
+  "name": "Remix Pro Field Camera",
+  "description": "Professional GPS map field camera for geotagged photo and video documentation with real-time metadata stamping, compass heading, OSM map overlay, and site survey tools.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation",
+    "accelerometer",
+    "gyroscope",
+    "magnetometer"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
