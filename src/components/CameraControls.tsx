@@ -1,15 +1,14 @@
 import React from 'react';
-import { Images, Edit3 } from 'lucide-react';
-import { CaptureMode, MediaItem } from '../types/camera';
+import { FolderCheck, Folder, Edit3 } from 'lucide-react';
+import { CaptureMode } from '../types/camera';
 
 interface CameraControlsProps {
   captureMode: CaptureMode;
   onSetCaptureMode: (mode: CaptureMode) => void;
   isRecording: boolean;
   onShutterPress: () => void;
-  latestMediaItem: MediaItem | null;
-  mediaCount: number;
-  onOpenGallery: () => void;
+  phoneFolderName: string | null;
+  onConfigureStorage: () => void;
   onOpenQuickNote: () => void;
 }
 
@@ -18,9 +17,8 @@ export const CameraControls: React.FC<CameraControlsProps> = ({
   onSetCaptureMode,
   isRecording,
   onShutterPress,
-  latestMediaItem,
-  mediaCount,
-  onOpenGallery,
+  phoneFolderName,
+  onConfigureStorage,
   onOpenQuickNote,
 }) => {
   return (
@@ -56,26 +54,30 @@ export const CameraControls: React.FC<CameraControlsProps> = ({
 
       {/* Primary Shutter Row */}
       <div className="w-full max-w-sm flex items-center justify-between px-2">
-        {/* Left slot: Gallery Thumbnail */}
-        <div className="w-16 flex items-center justify-start">
+        {/* Left slot: Direct Phone Storage Access */}
+        <div className="w-20 flex items-center justify-start">
           <button
-            onClick={onOpenGallery}
-            className="relative w-12 h-12 rounded-xl border border-white/25 overflow-hidden bg-zinc-900 active:scale-95 transition-all flex items-center justify-center cursor-pointer shadow-md group"
-            title="Open Gallery"
+            onClick={onConfigureStorage}
+            className="relative w-12 h-12 rounded-xl border border-white/25 bg-zinc-900/90 hover:bg-zinc-800 active:scale-95 transition-all flex flex-col items-center justify-center cursor-pointer shadow-md group"
+            title={
+              phoneFolderName
+                ? `Direct Phone Storage: [${phoneFolderName}]. Captures save straight here. Tap to change.`
+                : 'Grant phone storage access once to save photos directly to a device folder.'
+            }
           >
-            {latestMediaItem?.thumbnailUrl ? (
-              <img
-                src={latestMediaItem.thumbnailUrl}
-                alt="Latest capture"
-                className="w-full h-full object-cover"
-              />
+            {phoneFolderName ? (
+              <>
+                <FolderCheck className="w-5 h-5 text-emerald-400 group-hover:scale-110 transition-transform mb-0.5" />
+                <span className="text-[8px] font-bold text-emerald-300 truncate max-w-[42px]">
+                  {phoneFolderName}
+                </span>
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 border-2 border-black rounded-full" />
+              </>
             ) : (
-              <Images className="w-5 h-5 text-zinc-400 group-hover:text-white" />
-            )}
-            {mediaCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-amber-400 text-black text-[10px] font-bold px-1.5 py-0.2 rounded-full shadow">
-                {mediaCount}
-              </span>
+              <>
+                <Folder className="w-5 h-5 text-amber-400 group-hover:scale-110 transition-transform mb-0.5" />
+                <span className="text-[8px] font-semibold text-zinc-400">Phone</span>
+              </>
             )}
           </button>
         </div>
@@ -110,7 +112,7 @@ export const CameraControls: React.FC<CameraControlsProps> = ({
         </div>
 
         {/* Right slot: Field Remarks Note button */}
-        <div className="w-16 flex items-center justify-end">
+        <div className="w-20 flex items-center justify-end">
           <button
             onClick={onOpenQuickNote}
             className="w-12 h-12 rounded-xl border border-white/25 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 hover:text-white active:scale-95 transition-all flex flex-col items-center justify-center cursor-pointer shadow-md"

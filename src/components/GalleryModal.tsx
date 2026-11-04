@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { MediaItem } from '../types/camera';
 import { formatCoordinates, formatHeading } from '../utils/geo';
+import { exportToDeviceGallery } from '../utils/galleryExport';
+import { saveMediaItemToDB } from '../utils/storage';
 
 interface GalleryModalProps {
   isOpen: boolean;
@@ -32,6 +34,7 @@ interface GalleryModalProps {
   onDeleteItem: (id: string) => void;
   onClearAll: () => void;
   onOpenSyncQueue?: () => void;
+  onAddImportedMedia?: (item: MediaItem) => void;
 }
 
 export const GalleryModal: React.FC<GalleryModalProps> = ({
@@ -41,6 +44,7 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({
   onDeleteItem,
   onClearAll,
   onOpenSyncQueue,
+  onAddImportedMedia,
 }) => {
   const [filter, setFilter] = useState<'all' | 'photo' | 'video'>('all');
   const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
@@ -97,6 +101,56 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({
       );
       setCopiedCoords(true);
       setTimeout(() => setCopiedCoords(false), 2000);
+    }
+  };
+
+  const handleExportToGallery = async (item: MediaItem) => {
+    const ext = item.type === 'photo' ? 'jpg' : 'webm';
+    const dateStr = new Date(item.timestamp).toISOString().slice(0, 10);
+    const filename = `Field_${item.metadata.siteId || 'Site'}_${dateStr}_${Date.now()}.${ext}`;
+    await exportToDeviceGallery(item.blob, filename, item.metadata.siteId);
+  };
+
+  const handleImportFromDevice = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const files = Array.from(e.target.files);
+
+    for (const file of files) {
+      const isVideo = file.type.startsWith('video');
+      const previewUrl = URL.createObjectURL(file);
+      const newItem: MediaItem = {
+        id: `import_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+        type: isVideo ? 'video' : 'photo',
+        blob: file,
+        previewUrl,
+        thumbnailUrl: previewUrl,
+        timestamp: file.lastModified || Date.now(),
+        width: 1280,
+        height: 720,
+        syncStatus: 'pending',
+        sizeBytes: file.size,
+        metadata: {
+          timestampStr: new Date(file.lastModified || Date.now()).toLocaleString(),
+          rawTimestamp: file.lastModified || Date.now(),
+          latitude: 0,
+          longitude: 0,
+          altitude: null,
+          accuracy: null,
+          heading: null,
+          headingCardinal: 'N',
+          address: 'Imported from Phone Gallery',
+          siteId: 'IMPORTED',
+          technician: 'Device Import',
+          workStatus: 'Imported',
+          companyTitle: 'Field Media Import',
+          notes: file.name,
+        },
+      };
+
+      await saveMediaItemToDB(newItem);
+      if (onAddImportedMedia) {
+        onAddImportedMedia(newItem);
+      }
     }
   };
 
@@ -175,6 +229,18 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({
               Videos
             </button>
           </div>
+
+          <label className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-300 hover:text-amber-200 border border-zinc-700 flex items-center gap-1.5 cursor-pointer transition-all shadow-sm">
+            <Camera className="w-3.5 h-3.5 text-amber-400" />
+            <span>Import Phone Photos</span>
+            <input
+              type="file"
+              accept="image/*,video/*"
+              multiple
+              className="hidden"
+              onChange={handleImportFromDevice}
+            />
+          </label>
         </div>
 
         {/* Main Content: Grid or Detail View */}
@@ -369,62 +435,32 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({
 
               {/* Detail fields */}
               <div className="flex-1 overflow-y-auto p-4 space-y-3.5 text-xs text-zinc-300">
-                {/* Cloud Sync Status */}
+                {/* Save to Phone Photos Primary Action Button */}
+                <button
+                  onClick={() => handleExportToGallery(selectedItem)}
+                  className="w-full py-3 px-4 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2.5 shadow-xl active:scale-95 transition-all cursor-pointer"
+                >
+                  <Download className="w-4 h-4 stroke-[2.5]" />
+                  <span>Save to Phone Gallery / Photos</span>
+                </button>
+
+                {/* Local Storage Status */}
                 <div className="bg-zinc-900/60 p-3 rounded-xl border border-zinc-800/80">
                   <div className="flex items-center justify-between text-zinc-400 text-[10px] uppercase font-semibold mb-1.5">
                     <span className="flex items-center gap-1.5">
-                      <Cloud className="w-3.5 h-3.5 text-amber-400" />
-                      Cloud Sync & Storage
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                      Phone Gallery & Local Device Storage
                     </span>
-                    {onOpenSyncQueue && (
-                      <button
-                        onClick={onOpenSyncQueue}
-                        className="text-amber-400 hover:underline text-[10px] cursor-pointer"
-                      >
-                        Queue Manager
-                      </button>
-                    )}
                   </div>
 
-                  <div>
-                    {selectedItem.syncStatus === 'synced' ? (
-                      <div className="flex items-center gap-2 text-emerald-400 font-semibold text-xs">
-                        <CheckCircle2 className="w-4 h-4 shrink-0" />
-                        <div>
-                          <div>Backed Up to Cloud</div>
-                          {selectedItem.syncedAt && (
-                            <div className="text-[10px] font-normal text-zinc-400">
-                              Synced at {new Date(selectedItem.syncedAt).toLocaleTimeString()}
-                            </div>
-                          )}
-                        </div>
+                  <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <div>
+                      <div>Saved on Phone Local Storage</div>
+                      <div className="text-[10px] font-normal text-zinc-400 mt-0.5">
+                        Stored in local IndexedDB database and ready for instant phone photo gallery export.
                       </div>
-                    ) : selectedItem.syncStatus === 'syncing' ? (
-                      <div className="flex items-center gap-2 text-cyan-400 font-semibold text-xs animate-pulse">
-                        <RefreshCw className="w-4 h-4 shrink-0 animate-spin" />
-                        <span>Uploading to Cloud Server...</span>
-                      </div>
-                    ) : selectedItem.syncStatus === 'failed' ? (
-                      <div className="flex items-center gap-2 text-red-400 font-semibold text-xs">
-                        <AlertCircle className="w-4 h-4 shrink-0" />
-                        <div>
-                          <div>Upload Failed</div>
-                          <div className="text-[10px] font-normal text-red-300">
-                            {selectedItem.syncError || 'Network timeout'}
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 text-amber-400 font-semibold text-xs">
-                        <Clock className="w-4 h-4 shrink-0" />
-                        <div>
-                          <div>Queued in Local Storage (IndexedDB)</div>
-                          <div className="text-[10px] font-normal text-zinc-400">
-                            Will automatically upload when online
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    </div>
                   </div>
                 </div>
 

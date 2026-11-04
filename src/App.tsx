@@ -8,25 +8,18 @@ import { CameraHUD } from './components/CameraHUD';
 import { CameraControls } from './components/CameraControls';
 import { SettingsModal } from './components/SettingsModal';
 import { QuickNoteModal } from './components/QuickNoteModal';
-import { GalleryModal } from './components/GalleryModal';
-import { SyncQueueDrawer } from './components/SyncQueueDrawer';
+import { StorageFolderModal } from './components/StorageFolderModal';
 import { GoogleMapsModal } from './components/GoogleMapsModal';
 import {
   StampConfig,
   GeoData,
-  MediaItem,
   CaptureMode,
   CameraFacingMode,
-  SyncQueueState,
 } from './types/camera';
 import {
   DEFAULT_STAMP_CONFIG,
   getSavedStampConfig,
   saveStampConfig,
-  saveMediaItemToDB,
-  getAllMediaItemsFromDB,
-  deleteMediaItemFromDB,
-  clearAllMediaFromDB,
 } from './utils/storage';
 import {
   formatCoordinates,
@@ -37,7 +30,11 @@ import {
 } from './utils/geo';
 import { drawWatermarkFrame } from './utils/watermark';
 import { SimulatedCameraStream } from './utils/simulatedStream';
-import { syncQueue } from './utils/syncQueue';
+import {
+  saveStraightToPhone,
+  getStoredDirectoryHandle,
+  isFolderAccessSupported,
+} from './utils/deviceStorage';
 
 export default function App() {
   // Config & State
@@ -51,19 +48,14 @@ export default function App() {
   const [recordingSeconds, setRecordingSeconds] = useState<number>(0);
   const [isFlashing, setIsFlashing] = useState<boolean>(false);
 
-  // Sync & Offline State
-  const [syncState, setSyncState] = useState<SyncQueueState>(syncQueue.getState());
-  const [isSyncDrawerOpen, setIsSyncDrawerOpen] = useState<boolean>(false);
+  // Phone Device Storage State
+  const [phoneFolderName, setPhoneFolderName] = useState<string | null>(null);
+  const [isStorageModalOpen, setIsStorageModalOpen] = useState<boolean>(false);
 
   // Modals
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isQuickNoteOpen, setIsQuickNoteOpen] = useState<boolean>(false);
-  const [isGalleryOpen, setIsGalleryOpen] = useState<boolean>(false);
   const [isGoogleMapsOpen, setIsGoogleMapsOpen] = useState<boolean>(false);
-
-  // Media Library
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
-  const latestMediaItem = mediaItems.length > 0 ? mediaItems[0] : null;
 
   // Camera & Stream refs
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -114,25 +106,13 @@ export default function App() {
     }
   }, [stampConfig.customLogoDataUrl]);
 
-  // Load stored media from IndexedDB on startup and subscribe to syncQueue
+  // Check stored phone storage directory handle on startup
   useEffect(() => {
-    getAllMediaItemsFromDB()
-      .then((items) => {
-        setMediaItems(items);
-        syncQueue.initQueue(items);
-      })
-      .catch((err) => console.error('Error loading media from IndexedDB:', err));
-
-    const unsubscribe = syncQueue.subscribe((state, updatedItem) => {
-      setSyncState(state);
-      if (updatedItem) {
-        setMediaItems((prev) =>
-          prev.map((item) => (item.id === updatedItem.id ? { ...item, ...updatedItem } : item))
-        );
+    getStoredDirectoryHandle().then((handle) => {
+      if (handle) {
+        setPhoneFolderName(handle.name);
       }
     });
-
-    return unsubscribe;
   }, []);
 
   // Update Mini-Map tile whenever lat/lon changes
@@ -394,19 +374,9 @@ export default function App() {
     setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
   };
 
-  // Pure local save capture handler
-  const handleSaveCapture = useCallback((blob: Blob, filename: string) => {
-    // Create a local object URL and trigger direct browser download to device storage
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    console.log('Saved directly to local device storage:', filename);
+  // Save capture directly into phone storage (or device folder if granted)
+  const handleSaveCapture = useCallback(async (blob: Blob, filename: string) => {
+    await saveStraightToPhone(blob, filename);
   }, []);
 
   // PHOTO CAPTURE HANDLER
@@ -444,59 +414,16 @@ export default function App() {
       dateTimeStr: currentFormattedTime,
     });
 
-    // Generate JPEG blob
+    // Generate JPEG blob and save straight to phone
     canvas.toBlob(
       async (blob) => {
         if (!blob) return;
-
-        const thumbnailCanvas = document.createElement('canvas');
-        thumbnailCanvas.width = 320;
-        thumbnailCanvas.height = Math.round((320 / width) * height);
-        const tCtx = thumbnailCanvas.getContext('2d');
-        if (tCtx) {
-          tCtx.drawImage(canvas, 0, 0, thumbnailCanvas.width, thumbnailCanvas.height);
-        }
-        const thumbnailUrl = thumbnailCanvas.toDataURL('image/jpeg', 0.7);
-        const previewUrl = URL.createObjectURL(blob);
-
-        const newItem: MediaItem = {
-          id: `photo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-          type: 'photo',
-          blob,
-          previewUrl,
-          thumbnailUrl,
-          timestamp: Date.now(),
-          width,
-          height,
-          syncStatus: 'pending',
-          sizeBytes: blob.size,
-          metadata: {
-            timestampStr: currentFormattedTime,
-            rawTimestamp: Date.now(),
-            latitude: geoData.latitude,
-            longitude: geoData.longitude,
-            altitude: geoData.altitude,
-            accuracy: geoData.accuracy,
-            heading: geoData.heading,
-            headingCardinal: geoData.headingCardinal,
-            address: geoData.address,
-            siteId: stampConfig.siteId,
-            technician: stampConfig.technicianName,
-            workStatus: stampConfig.workStatus,
-            companyTitle: stampConfig.companyTitle,
-            notes: stampConfig.customNotes,
-          },
-        };
 
         const cleanSite = (stampConfig.siteId || 'SITE').replace(/[^a-zA-Z0-9_-]/g, '_');
         const dateStr = new Date().toISOString().slice(0, 10);
         const filename = `Photo_${cleanSite}_${dateStr}_${Date.now()}.jpg`;
 
-        handleSaveCapture(blob, filename);
-
-        await saveMediaItemToDB(newItem);
-        setMediaItems((prev) => [newItem, ...prev]);
-        syncQueue.enqueueItem(newItem);
+        await handleSaveCapture(blob, filename);
       },
       'image/jpeg',
       0.92
@@ -585,52 +512,13 @@ export default function App() {
         const videoBlob = new Blob(recordedChunksRef.current, {
           type: selectedMime || 'video/webm',
         });
-        const durationSec = Math.max(1, Math.round((Date.now() - startTimestamp) / 1000));
-        const previewUrl = URL.createObjectURL(videoBlob);
-
-        // Generate thumbnail from recording canvas
-        const thumbnailUrl = recCanvas.toDataURL('image/jpeg', 0.65);
-
-        const newItem: MediaItem = {
-          id: `video_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-          type: 'video',
-          blob: videoBlob,
-          previewUrl,
-          thumbnailUrl,
-          timestamp: Date.now(),
-          durationSeconds: durationSec,
-          width,
-          height,
-          syncStatus: 'pending',
-          sizeBytes: videoBlob.size,
-          metadata: {
-            timestampStr: currentFormattedTime,
-            rawTimestamp: Date.now(),
-            latitude: geoData.latitude,
-            longitude: geoData.longitude,
-            altitude: geoData.altitude,
-            accuracy: geoData.accuracy,
-            heading: geoData.heading,
-            headingCardinal: geoData.headingCardinal,
-            address: geoData.address,
-            siteId: stampConfig.siteId,
-            technician: stampConfig.technicianName,
-            workStatus: stampConfig.workStatus,
-            companyTitle: stampConfig.companyTitle,
-            notes: stampConfig.customNotes,
-          },
-        };
 
         const cleanSite = (stampConfig.siteId || 'SITE').replace(/[^a-zA-Z0-9_-]/g, '_');
         const dateStr = new Date().toISOString().slice(0, 10);
         const ext = (selectedMime && selectedMime.includes('mp4')) ? 'mp4' : 'webm';
         const filename = `Video_${cleanSite}_${dateStr}_${Date.now()}.${ext}`;
 
-        handleSaveCapture(videoBlob, filename);
-
-        await saveMediaItemToDB(newItem);
-        setMediaItems((prev) => [newItem, ...prev]);
-        syncQueue.enqueueItem(newItem);
+        await handleSaveCapture(videoBlob, filename);
 
         setIsRecording(false);
         setRecordingSeconds(0);
@@ -674,17 +562,6 @@ export default function App() {
   };
 
   // Delete media item
-  const handleDeleteMediaItem = async (id: string) => {
-    await deleteMediaItemFromDB(id);
-    setMediaItems((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  // Clear all media
-  const handleClearAllMedia = async () => {
-    await clearAllMediaFromDB();
-    setMediaItems([]);
-  };
-
   // Save updated config
   const handleSaveConfig = (newConfig: StampConfig) => {
     setStampConfig(newConfig);
@@ -731,7 +608,6 @@ export default function App() {
         <CameraHUD
           geoData={geoData}
           stampConfig={stampConfig}
-          syncState={syncState}
           mapTileCanvas={mapTileCanvas}
           isRecording={isRecording}
           recordingSeconds={recordingSeconds}
@@ -743,11 +619,7 @@ export default function App() {
           onSwitchCamera={handleSwitchCamera}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenQuickNote={() => setIsQuickNoteOpen(true)}
-          onOpenSyncDrawer={() => setIsSyncDrawerOpen(true)}
           onOpenGoogleMaps={() => setIsGoogleMapsOpen(true)}
-          onToggleSimulatedOffline={() =>
-            syncQueue.setSimulatedOffline(!syncState.isSimulatedOffline)
-          }
           isSimulatedCamera={isSimulatedCamera}
           onRetryPhysicalCamera={startCamera}
         />
@@ -759,9 +631,8 @@ export default function App() {
         onSetCaptureMode={setCaptureMode}
         isRecording={isRecording}
         onShutterPress={handleShutterPress}
-        latestMediaItem={latestMediaItem}
-        mediaCount={mediaItems.length}
-        onOpenGallery={() => setIsGalleryOpen(true)}
+        phoneFolderName={phoneFolderName}
+        onConfigureStorage={() => setIsStorageModalOpen(true)}
         onOpenQuickNote={() => setIsQuickNoteOpen(true)}
       />
 
@@ -784,30 +655,12 @@ export default function App() {
         onSaveNotes={(notes) => handleSaveConfig({ ...stampConfig, customNotes: notes })}
       />
 
-      {/* Media Gallery & Inspector Modal */}
-      <GalleryModal
-        isOpen={isGalleryOpen}
-        onClose={() => setIsGalleryOpen(false)}
-        mediaItems={mediaItems}
-        onDeleteItem={handleDeleteMediaItem}
-        onClearAll={handleClearAllMedia}
-        onOpenSyncQueue={() => {
-          setIsGalleryOpen(false);
-          setIsSyncDrawerOpen(true);
-        }}
-      />
-
-      {/* Offline Storage & Sync Queue Drawer */}
-      <SyncQueueDrawer
-        isOpen={isSyncDrawerOpen}
-        onClose={() => setIsSyncDrawerOpen(false)}
-        syncState={syncState}
-        mediaItems={mediaItems}
-        onTriggerSync={() => syncQueue.triggerSync()}
-        onRetryFailed={() => syncQueue.retryFailed()}
-        onToggleSimulatedOffline={() =>
-          syncQueue.setSimulatedOffline(!syncState.isSimulatedOffline)
-        }
+      {/* Phone Storage Access Modal */}
+      <StorageFolderModal
+        isOpen={isStorageModalOpen}
+        onClose={() => setIsStorageModalOpen(false)}
+        currentFolderName={phoneFolderName}
+        onFolderConnected={(name) => setPhoneFolderName(name)}
       />
 
       {/* Google Maps Grounding Modal */}

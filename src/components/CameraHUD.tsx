@@ -10,15 +10,13 @@ import {
   Compass,
   FileText,
 } from 'lucide-react';
-import { GeoData, StampConfig, SyncQueueState } from '../types/camera';
+import { GeoData, StampConfig } from '../types/camera';
 import { formatCoordinates, formatHeading, formatFieldDateTime } from '../utils/geo';
-import { SyncStatusBadge } from './SyncStatusBadge';
 import { PWAInstallButton } from './PWAInstallButton';
 
 interface CameraHUDProps {
   geoData: GeoData;
   stampConfig: StampConfig;
-  syncState: SyncQueueState;
   mapTileCanvas: HTMLCanvasElement | null;
   isRecording: boolean;
   recordingSeconds: number;
@@ -30,8 +28,6 @@ interface CameraHUDProps {
   onSwitchCamera: () => void;
   onOpenSettings: () => void;
   onOpenQuickNote: () => void;
-  onOpenSyncDrawer: () => void;
-  onToggleSimulatedOffline: () => void;
   onOpenGoogleMaps?: () => void;
   isSimulatedCamera: boolean;
   onRetryPhysicalCamera: () => void;
@@ -40,7 +36,6 @@ interface CameraHUDProps {
 export const CameraHUD: React.FC<CameraHUDProps> = ({
   geoData,
   stampConfig,
-  syncState,
   mapTileCanvas,
   isRecording,
   recordingSeconds,
@@ -52,8 +47,6 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
   onSwitchCamera,
   onOpenSettings,
   onOpenQuickNote,
-  onOpenSyncDrawer,
-  onToggleSimulatedOffline,
   onOpenGoogleMaps,
   isSimulatedCamera,
   onRetryPhysicalCamera,
