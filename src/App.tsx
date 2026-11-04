@@ -44,7 +44,7 @@ export default function App() {
   const [stampConfig, setStampConfig] = useState<StampConfig>(getSavedStampConfig);
   const [captureMode, setCaptureMode] = useState<CaptureMode>('photo');
   const [facingMode, setFacingMode] = useState<CameraFacingMode>('environment');
-  const [showGrid, setShowGrid] = useState<boolean>(true);
+  const [showGrid, setShowGrid] = useState<boolean>(false);
   const [hasTorch, setHasTorch] = useState<boolean>(false);
   const [torchActive, setTorchActive] = useState<boolean>(false);
   const [isRecording, setIsRecording] = useState<boolean>(false);
@@ -54,7 +54,6 @@ export default function App() {
   // Sync & Offline State
   const [syncState, setSyncState] = useState<SyncQueueState>(syncQueue.getState());
   const [isSyncDrawerOpen, setIsSyncDrawerOpen] = useState<boolean>(false);
-  const [offlineToast, setOfflineToast] = useState<string | null>(null);
 
   // Modals
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
@@ -269,6 +268,21 @@ export default function App() {
     }
   }, []);
 
+  // Splash screen dismissal helper
+  const dismissSplash = useCallback(() => {
+    const splash = document.getElementById('splash-screen');
+    if (splash && !splash.classList.contains('fade-out')) {
+      splash.classList.add('fade-out');
+      setTimeout(() => {
+        try {
+          splash.remove();
+        } catch (e) {
+          // ignore if already removed
+        }
+      }, 400); // Clean up DOM
+    }
+  }, []);
+
   // Camera initialization
   const startCamera = useCallback(async () => {
     // Stop prior streams
@@ -297,6 +311,9 @@ export default function App() {
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          dismissSplash();
+        };
         videoRef.current.play().catch(() => {});
       }
 
@@ -325,14 +342,24 @@ export default function App() {
 
       if (videoRef.current) {
         videoRef.current.srcObject = simStream;
+        videoRef.current.onloadedmetadata = () => {
+          dismissSplash();
+        };
         videoRef.current.play().catch(() => {});
       }
     }
-  }, [facingMode]);
+  }, [facingMode, dismissSplash]);
 
   useEffect(() => {
     startCamera();
+
+    // Safety fallback timer in case video metadata event already fired or delayed
+    const timer = setTimeout(() => {
+      dismissSplash();
+    }, 1200);
+
     return () => {
+      clearTimeout(timer);
       if (activeStreamRef.current) {
         activeStreamRef.current.getTracks().forEach((t) => t.stop());
       }
@@ -343,7 +370,7 @@ export default function App() {
         simulatedStreamObjRef.current.stop();
       }
     };
-  }, [startCamera]);
+  }, [startCamera, dismissSplash]);
 
   // Toggle Torch
   const handleToggleTorch = async () => {
@@ -366,6 +393,21 @@ export default function App() {
   const handleSwitchCamera = () => {
     setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
   };
+
+  // Pure local save capture handler
+  const handleSaveCapture = useCallback((blob: Blob, filename: string) => {
+    // Create a local object URL and trigger direct browser download to device storage
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    console.log('Saved directly to local device storage:', filename);
+  }, []);
 
   // PHOTO CAPTURE HANDLER
   const handleCapturePhoto = async () => {
@@ -446,14 +488,15 @@ export default function App() {
           },
         };
 
+        const cleanSite = (stampConfig.siteId || 'SITE').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const dateStr = new Date().toISOString().slice(0, 10);
+        const filename = `Photo_${cleanSite}_${dateStr}_${Date.now()}.jpg`;
+
+        handleSaveCapture(blob, filename);
+
         await saveMediaItemToDB(newItem);
         setMediaItems((prev) => [newItem, ...prev]);
         syncQueue.enqueueItem(newItem);
-
-        if (!syncQueue.isEffectiveOnline()) {
-          setOfflineToast('Photo stored in local IndexedDB. Queued for upload when online.');
-          setTimeout(() => setOfflineToast(null), 3500);
-        }
       },
       'image/jpeg',
       0.92
@@ -578,14 +621,16 @@ export default function App() {
           },
         };
 
+        const cleanSite = (stampConfig.siteId || 'SITE').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const dateStr = new Date().toISOString().slice(0, 10);
+        const ext = (selectedMime && selectedMime.includes('mp4')) ? 'mp4' : 'webm';
+        const filename = `Video_${cleanSite}_${dateStr}_${Date.now()}.${ext}`;
+
+        handleSaveCapture(videoBlob, filename);
+
         await saveMediaItemToDB(newItem);
         setMediaItems((prev) => [newItem, ...prev]);
         syncQueue.enqueueItem(newItem);
-
-        if (!syncQueue.isEffectiveOnline()) {
-          setOfflineToast('Video stored in local IndexedDB. Queued for upload when online.');
-          setTimeout(() => setOfflineToast(null), 3500);
-        }
 
         setIsRecording(false);
         setRecordingSeconds(0);
@@ -706,14 +751,6 @@ export default function App() {
           isSimulatedCamera={isSimulatedCamera}
           onRetryPhysicalCamera={startCamera}
         />
-
-        {/* Offline Capture Toast Notification */}
-        {offlineToast && (
-          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-40 bg-zinc-950/95 border border-amber-400 text-amber-200 text-xs px-4 py-2.5 rounded-xl shadow-2xl backdrop-blur-md flex items-center gap-2.5 pointer-events-none animate-in fade-in slide-in-from-top-2">
-            <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-            <span className="font-semibold">{offlineToast}</span>
-          </div>
-        )}
       </div>
 
       {/* Bottom Tactical Controls Bar */}

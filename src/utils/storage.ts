@@ -55,6 +55,24 @@ export function saveStampConfig(config: StampConfig): void {
   }
 }
 
+// Local-only preferences storage
+export const saveLocalSetting = (key: string, value: any) => {
+  try {
+    localStorage.setItem(`field_camera_${key}`, JSON.stringify(value));
+  } catch (e) {
+    console.error("Failed to save setting locally", e);
+  }
+};
+
+export const getLocalSetting = (key: string, defaultValue: any) => {
+  try {
+    const item = localStorage.getItem(`field_camera_${key}`);
+    return item ? JSON.parse(item) : defaultValue;
+  } catch (e) {
+    return defaultValue;
+  }
+};
+
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);

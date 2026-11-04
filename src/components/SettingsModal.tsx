@@ -459,7 +459,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <input
                   type="range"
                   min="0.8"
-                  max="1.3"
+                  max="1.8"
                   step="0.05"
                   value={config.textScale}
                   onChange={(e) => handleChange('textScale', parseFloat(e.target.value))}

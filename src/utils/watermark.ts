@@ -187,9 +187,9 @@ export function drawWatermarkFrame({
 
   // 5. Calculate Stamp Dimensions & Typography
   ctx.save();
-  const baseFontSize = Math.max(14, Math.floor(width * 0.021 * (stampConfig.textScale || 1.0)));
-  const headerFontSize = Math.round(baseFontSize * 1.15);
-  const lineSpacing = Math.round(baseFontSize * 1.38);
+  const baseFontSize = Math.max(18, Math.floor(width * 0.028 * (stampConfig.textScale || 1.0)));
+  const headerFontSize = Math.round(baseFontSize * 1.25);
+  const lineSpacing = Math.round(baseFontSize * 1.4);
   const padX = Math.round(width * 0.028);
   const padY = Math.round(width * 0.022);
 

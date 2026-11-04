@@ -77,19 +77,6 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
 
   return (
     <div className="absolute inset-0 pointer-events-none flex flex-col justify-between z-20 overflow-hidden">
-      {/* Simulation banner if physical camera is not active */}
-      {isSimulatedCamera && (
-        <div className="pointer-events-auto bg-amber-500/90 text-slate-950 px-3 py-1.5 text-xs font-semibold flex items-center justify-between backdrop-blur-sm">
-          <span>Simulation Mode: Virtual camera feed active.</span>
-          <button
-            onClick={onRetryPhysicalCamera}
-            className="underline hover:text-black font-bold ml-2 cursor-pointer"
-          >
-            Switch to Physical Camera
-          </button>
-        </div>
-      )}
-
       {/* Top Bar HUD */}
       <div
         className="pointer-events-auto flex items-center justify-between px-3.5 pt-3.5 pb-2"
@@ -119,15 +106,6 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
             </button>
           )}
 
-          <button
-            onClick={onOpenQuickNote}
-            aria-label="Field Notes"
-            className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-white flex items-center justify-center active:scale-95 transition-all shadow-md hover:bg-black/80 cursor-pointer"
-            title="Field Observation Notes"
-          >
-            <FileText className="w-4 h-4 text-amber-300" />
-          </button>
-
           {onOpenGoogleMaps && (
             <button
               onClick={onOpenGoogleMaps}
@@ -140,45 +118,20 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
           )}
         </div>
 
-        {/* Center: Recording Indicator or Title */}
+        {/* Center: Recording Indicator */}
         <div className="flex items-center gap-2">
-          {isRecording ? (
+          {isRecording && (
             <div className="flex items-center gap-2 bg-red-600/90 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-red-400 shadow-lg animate-pulse">
               <span className="w-2.5 h-2.5 rounded-full bg-white"></span>
               <span className="text-white text-xs font-mono font-bold tracking-wider">
                 REC {formatRecDuration(recordingSeconds)}
               </span>
             </div>
-          ) : (
-            <div className="bg-black/60 backdrop-blur-md border border-white/15 px-2.5 py-1.2 rounded-full flex items-center gap-1.5 text-white/90 text-xs font-mono">
-              <span className={`w-2 h-2 rounded-full ${getGpsStatusColor()}`} />
-              <span>
-                {geoData.accuracy !== null ? `±${Math.round(geoData.accuracy)}m` : 'GPS'}
-              </span>
-              {geoData.isSimulated && <span className="text-amber-400 text-[10px] font-sans">[SIM]</span>}
-            </div>
           )}
-
-          {/* Sync Status Badge */}
-          <SyncStatusBadge
-            syncState={syncState}
-            onOpenSyncDrawer={onOpenSyncDrawer}
-            onToggleSimulatedOffline={onToggleSimulatedOffline}
-          />
         </div>
 
-        {/* Right actions: Grid & Switch Camera */}
+        {/* Right actions: Switch Camera */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={onToggleGrid}
-            aria-label="Toggle Reticle Grid"
-            className={`w-10 h-10 rounded-full backdrop-blur-md border border-white/20 flex items-center justify-center active:scale-95 transition-all shadow-md cursor-pointer ${
-              showGrid ? 'bg-amber-400/25 text-amber-300 border-amber-400/50' : 'bg-black/60 text-white'
-            }`}
-          >
-            <Grid3X3 className="w-5 h-5" />
-          </button>
-
           <button
             onClick={onSwitchCamera}
             aria-label="Switch Camera Facing"
@@ -188,42 +141,6 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
           </button>
         </div>
       </div>
-
-      {/* Offline Alert Strip */}
-      {!syncState.effectiveOnline && (
-        <div className="pointer-events-auto mx-3.5 mb-1 px-3 py-1.5 rounded-lg bg-amber-500/20 border border-amber-400/40 backdrop-blur-md flex items-center justify-between text-xs text-amber-200 shadow-md">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-            <span className="font-medium">
-              Offline Storage Active · Captures saved to local storage ({syncState.pendingCount} queued for cloud upload)
-            </span>
-          </div>
-          <button
-            onClick={onToggleSimulatedOffline}
-            className="text-[11px] font-bold underline text-amber-300 hover:text-white ml-2 cursor-pointer"
-          >
-            Go Online
-          </button>
-        </div>
-      )}
-
-      {/* Syncing Progress Strip */}
-      {syncState.effectiveOnline && syncState.isSyncing && (
-        <div className="pointer-events-auto mx-3.5 mb-1 px-3 py-1.5 rounded-lg bg-cyan-950/80 border border-cyan-400/50 backdrop-blur-md flex items-center justify-between text-xs text-cyan-200 shadow-md">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shrink-0" />
-            <span className="font-mono">
-              Syncing to Cloud: {syncState.currentSyncingItem ? syncState.currentSyncingItem.siteId : 'Processing'} ({syncState.pendingCount} remaining)
-            </span>
-          </div>
-          <button
-            onClick={onOpenSyncDrawer}
-            className="text-[11px] font-bold text-cyan-300 hover:underline cursor-pointer"
-          >
-            View Queue
-          </button>
-        </div>
-      )}
 
       {/* Grid Reticle Viewfinder Overlay */}
       {showGrid && (
@@ -270,48 +187,51 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
         >
           {/* Text block */}
           <div
-            className={`space-y-0.5 leading-snug flex-1 min-w-0 transition-all ${
+            className={`space-y-1 leading-snug flex-1 min-w-0 transition-all ${
               (stampConfig.showTextBackdrop ?? true)
-                ? 'bg-black/60 backdrop-blur-xs p-2.5 rounded-xl border border-white/15 shadow-lg'
+                ? 'bg-black/65 backdrop-blur-xs p-3 rounded-xl border border-white/20 shadow-xl'
                 : 'p-1'
             }`}
+            style={{
+              fontSize: `${Math.round((stampConfig.textScale || 1.0) * 100)}%`,
+            }}
           >
             {stampConfig.companyTitle && (
-              <div className="text-xs sm:text-sm font-extrabold tracking-wide uppercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+              <div className="text-sm sm:text-base font-black tracking-wide uppercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
                 {stampConfig.companyTitle}
               </div>
             )}
 
             {stampConfig.showSiteDetails && (
-              <div className="text-[11px] sm:text-xs font-semibold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+              <div className="text-xs sm:text-sm font-bold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
                 <span className="text-amber-300">Site:</span> {stampConfig.siteId || 'N/A'}{' '}
                 <span className="text-white/40">|</span> {stampConfig.workStatus}
               </div>
             )}
 
             {stampConfig.showTechnician && stampConfig.technicianName && (
-              <div className="text-[10px] sm:text-[11px] font-medium text-white/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+              <div className="text-xs sm:text-sm font-semibold text-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
                 Tech: {stampConfig.technicianName}
               </div>
             )}
 
             {stampConfig.showDateTime && (
-              <div className="text-[10px] sm:text-[11px] font-mono drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+              <div className="text-xs sm:text-sm font-mono font-bold drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
                 {currentTimeStr}
               </div>
             )}
 
             {stampConfig.showAddress && (
-              <div className="text-[10px] sm:text-[11px] text-white/95 line-clamp-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+              <div className="text-xs sm:text-sm font-semibold text-white/95 line-clamp-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
                 {geoData.address || 'Locating address...'}
               </div>
             )}
 
             {stampConfig.showCoordinates && (
-              <div className="text-[10px] sm:text-[11px] font-mono text-white/90 flex flex-wrap items-center gap-1.5 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+              <div className="text-xs sm:text-sm font-mono font-semibold text-white/95 flex flex-wrap items-center gap-1.5 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
                 <span>{formatCoordinates(geoData.latitude, geoData.longitude)}</span>
                 {geoData.accuracy !== null && (
-                  <span className="text-white/60">±{Math.round(geoData.accuracy)}m</span>
+                  <span className="text-white/70">±{Math.round(geoData.accuracy)}m</span>
                 )}
                 {stampConfig.showAltitude && geoData.altitude !== null && (
                   <span>· Alt: {Math.round(geoData.altitude)}m</span>
@@ -320,14 +240,14 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
             )}
 
             {stampConfig.showHeading && (
-              <div className="text-[10px] sm:text-[11px] font-mono flex items-center gap-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
-                <Compass className="w-3 h-3 inline-block" />
+              <div className="text-xs sm:text-sm font-mono font-semibold flex items-center gap-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+                <Compass className="w-3.5 h-3.5 inline-block" />
                 <span>{formattedHeading.full}</span>
               </div>
             )}
 
             {stampConfig.showNotes && stampConfig.customNotes && (
-              <div className="text-[10px] sm:text-[11px] text-amber-200 line-clamp-1 italic drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+              <div className="text-xs sm:text-sm text-amber-300 font-semibold line-clamp-1 italic drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
                 Note: {stampConfig.customNotes}
               </div>
             )}
