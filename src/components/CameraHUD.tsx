@@ -13,6 +13,7 @@ import {
 import { GeoData, StampConfig, SyncQueueState } from '../types/camera';
 import { formatCoordinates, formatHeading, formatFieldDateTime } from '../utils/geo';
 import { SyncStatusBadge } from './SyncStatusBadge';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface CameraHUDProps {
   geoData: GeoData;
@@ -103,6 +104,8 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
           >
             <Settings className="w-5 h-5" />
           </button>
+
+          <PWAInstallButton variant="hud" />
 
           {hasTorch && (
             <button

@@ -114,6 +114,9 @@ async function startServer() {
     });
   });
 
+  // Serve static public assets (sw.js, manifest.json, icons)
+  app.use(express.static('public'));
+
   // Vite middleware in dev mode
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

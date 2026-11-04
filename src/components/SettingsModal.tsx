@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { StampConfig } from '../types/camera';
 import { LOCATION_PRESETS } from '../utils/geo';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -283,6 +284,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-100 focus:outline-none focus:border-amber-400"
                 />
               </div>
+
+              {/* PWA App Installation Card */}
+              <PWAInstallButton variant="settings" />
             </div>
           )}
 
