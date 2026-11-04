@@ -74,18 +74,18 @@ export default function App() {
 
   // Geolocation & Orientation state
   const [geoData, setGeoData] = useState<GeoData>({
-    latitude: 37.7793,
-    longitude: -122.4192,
-    altitude: 22,
-    accuracy: 6,
-    heading: 42,
-    headingCardinal: 'NE',
+    latitude: 0,
+    longitude: 0,
+    altitude: null,
+    accuracy: null,
+    heading: 0,
+    headingCardinal: 'N',
     pitch: 0,
     roll: 0,
-    address: 'Civic Center Plaza, San Francisco, CA',
-    isLoadingAddress: false,
-    isLocked: true,
-    isSimulated: true, // initial state until live GPS provides lock
+    address: 'Acquiring live phone GPS...',
+    isLoadingAddress: true,
+    isLocked: false,
+    isSimulated: false,
     lastUpdated: Date.now(),
   });
 

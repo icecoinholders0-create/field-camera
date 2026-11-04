@@ -149,8 +149,53 @@ export async function requestPhoneStorageFolder(): Promise<{
 export async function saveStraightToPhone(
   blob: Blob,
   filename: string
-): Promise<{ success: boolean; method: 'folder' | 'download'; folderName?: string }> {
-  // Try writing directly to persistent phone storage folder
+): Promise<{ success: boolean; method: 'share' | 'folder' | 'picker' | 'download'; folderName?: string }> {
+  const isPhoto = blob.type.includes('image') || filename.toLowerCase().endsWith('.jpg') || filename.toLowerCase().endsWith('.png');
+  const mimeType = blob.type || (isPhoto ? 'image/jpeg' : 'video/webm');
+  const file = new File([blob], filename, { type: mimeType });
+
+  // 1. Prioritize Native Web Share API (Triggers native iOS Safari & Android Chrome OS share sheet with direct "Save Image" / "Save to Photos" action)
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({
+        title: 'Field Camera Capture',
+        text: 'Geotagged field documentation capture',
+        files: [file],
+      });
+      return { success: true, method: 'share', folderName: 'Phone Gallery' };
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        return { success: true, method: 'share', folderName: 'Phone Gallery' };
+      }
+      console.log('Native share sheet skipped, using file picker / download fallback:', err);
+    }
+  }
+
+  // 2. Try modern File System Access API if supported (Chrome/Edge Mobile)
+  if ('showSaveFilePicker' in window) {
+    try {
+      const isVideo = filename.toLowerCase().endsWith('.mp4') || filename.toLowerCase().endsWith('.webm');
+      const handle = await (window as any).showSaveFilePicker({
+        suggestedName: filename,
+        types: [{
+          description: isVideo ? 'Video File' : 'Image File',
+          accept: isVideo 
+            ? { 'video/mp4': ['.mp4'], 'video/webm': ['.webm'] }
+            : { 'image/jpeg': ['.jpg', '.jpeg'] }
+        }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return { success: true, method: 'picker', folderName: 'Device Storage' };
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        console.log("File picker skipped, using folder/download fallback:", err);
+      }
+    }
+  }
+
+  // 3. Try writing directly to persistent phone storage folder if configured
   if (isFolderAccessSupported()) {
     try {
       const dirHandle = await getStoredDirectoryHandle();
@@ -174,12 +219,13 @@ export async function saveStraightToPhone(
     }
   }
 
-  // Fallback: Direct device download (no share sheets, no cloud)
+  // 4. Fallback: Direct device download
   try {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;
+    document.styleSheets; // force layout
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
