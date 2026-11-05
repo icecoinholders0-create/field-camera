@@ -51,6 +51,7 @@ export default function App() {
   // Phone Device Storage State
   const [phoneFolderName, setPhoneFolderName] = useState<string | null>(null);
   const [isStorageModalOpen, setIsStorageModalOpen] = useState<boolean>(false);
+  const [latestCapture, setLatestCapture] = useState<{ url: string; type: 'photo' | 'video'; timestamp: number } | null>(null);
 
   // Modals
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
@@ -374,10 +375,27 @@ export default function App() {
     setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
   };
 
-  // Save capture directly into phone storage (or device folder if granted)
-  const handleSaveCapture = useCallback(async (blob: Blob, filename: string) => {
+  // Save capture directly into phone storage (or device folder if granted) and update latest capture thumbnail
+  const handleCaptureComplete = async (blob: Blob, type: 'photo' | 'video') => {
+    const cleanSite = (stampConfig.siteId || 'SITE').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const filename = `${type === 'photo' ? 'Photo' : 'Video'}_${cleanSite}_${dateStr}_${Date.now()}.${
+      type === 'photo' ? 'jpg' : 'mp4'
+    }`;
+
+    // 1. Save to native storage / device download
     await saveStraightToPhone(blob, filename);
-  }, []);
+
+    // 2. Immediately create a local preview URL for the thumbnail
+    const previewUrl = URL.createObjectURL(blob);
+
+    // 3. Update app state so bottom-left thumbnail shows this latest capture
+    setLatestCapture({
+      url: previewUrl,
+      type: type,
+      timestamp: Date.now(),
+    });
+  };
 
   // PHOTO CAPTURE HANDLER
   const handleCapturePhoto = async () => {
@@ -418,12 +436,7 @@ export default function App() {
     canvas.toBlob(
       async (blob) => {
         if (!blob) return;
-
-        const cleanSite = (stampConfig.siteId || 'SITE').replace(/[^a-zA-Z0-9_-]/g, '_');
-        const dateStr = new Date().toISOString().slice(0, 10);
-        const filename = `Photo_${cleanSite}_${dateStr}_${Date.now()}.jpg`;
-
-        await handleSaveCapture(blob, filename);
+        await handleCaptureComplete(blob, 'photo');
       },
       'image/jpeg',
       0.92
@@ -518,7 +531,7 @@ export default function App() {
         const ext = (selectedMime && selectedMime.includes('mp4')) ? 'mp4' : 'webm';
         const filename = `Video_${cleanSite}_${dateStr}_${Date.now()}.${ext}`;
 
-        await handleSaveCapture(videoBlob, filename);
+        await handleCaptureComplete(videoBlob, 'video');
 
         setIsRecording(false);
         setRecordingSeconds(0);
@@ -631,8 +644,20 @@ export default function App() {
         onSetCaptureMode={setCaptureMode}
         isRecording={isRecording}
         onShutterPress={handleShutterPress}
-        phoneFolderName={phoneFolderName}
-        onConfigureStorage={() => setIsStorageModalOpen(true)}
+        latestCapture={latestCapture}
+        onOpenGallery={() => {
+          if (latestCapture) {
+            // Re-trigger native share / gallery export on thumbnail click
+            fetch(latestCapture.url)
+              .then((res) => res.blob())
+              .then((blob) => {
+                saveStraightToPhone(
+                  blob,
+                  `FieldCamera_${Date.now()}.${latestCapture.type === 'photo' ? 'jpg' : 'mp4'}`
+                );
+              });
+          }
+        }}
         onOpenQuickNote={() => setIsQuickNoteOpen(true)}
       />
 

@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="lensGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#1e293b" />
+      <stop offset="65%" stop-color="#090d16" />
+      <stop offset="100%" stop-color="#020617" />
+    </radialGradient>
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFD600" />
+      <stop offset="100%" stop-color="#FF9100" />
+    </linearGradient>
+    <linearGradient id="bodyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#18181b" />
+      <stop offset="100%" stop-color="#09090b" />
+    </linearGradient>
+  </defs>
+
+  <!-- Dark base background -->
+  <rect width="512" height="512" rx="104" fill="#000000" />
+
+  <!-- Camera Outer Body with Tactical Chamfer -->
+  <rect x="56" y="112" width="400" height="312" rx="48" fill="url(#bodyGrad)" stroke="#27272a" stroke-width="4" />
+  
+  <!-- Top Pentaprism / Flash Bump -->
+  <path d="M192 112 L224 64 L288 64 L320 112 Z" fill="#27272a" stroke="#3f3f46" stroke-width="3" />
+  
+  <!-- Red LED / Sensor Indicator -->
+  <circle cx="396" cy="164" r="12" fill="#ef4444" />
+  <circle cx="396" cy="164" r="6" fill="#fca5a5" />
+
+  <!-- Lens Outer Ring -->
+  <circle cx="256" cy="272" r="132" fill="#18181b" stroke="url(#ringGrad)" stroke-width="8" />
+
+  <!-- Lens Aperture / Glass -->
+  <circle cx="256" cy="272" r="110" fill="url(#lensGrad)" stroke="#38bdf8" stroke-width="2" stroke-opacity="0.6" />
+
+  <!-- Crosshair Survey Reticle -->
+  <circle cx="256" cy="272" r="64" fill="none" stroke="#FFD600" stroke-width="3" stroke-dasharray="14 10" />
+  <circle cx="256" cy="272" r="18" fill="#FFD600" fill-opacity="0.8" />
+  <circle cx="256" cy="272" r="6" fill="#ffffff" />
+
+  <!-- Reticle Cardinal Ticks -->
+  <line x1="256" y1="184" x2="256" y2="204" stroke="#FFD600" stroke-width="4" stroke-linecap="round" />
+  <line x1="256" y1="340" x2="256" y2="360" stroke="#FFD600" stroke-width="4" stroke-linecap="round" />
+  <line x1="168" y1="272" x2="188" y2="272" stroke="#FFD600" stroke-width="4" stroke-linecap="round" />
+  <line x1="324" y1="272" x2="344" y2="272" stroke="#FFD600" stroke-width="4" stroke-linecap="round" />
+
+  <!-- Corner GPS Markers -->
+  <path d="M84 156 L84 140 L100 140" fill="none" stroke="#FFD600" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M428 156 L428 140 L412 140" fill="none" stroke="#FFD600" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M84 380 L84 396 L100 396" fill="none" stroke="#FFD600" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M428 380 L428 396 L412 396" fill="none" stroke="#FFD600" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

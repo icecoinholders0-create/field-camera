@@ -11,39 +11,30 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['apple-touch-icon.png', 'icon.svg', 'icon-192.png', 'icon-512.png'],
+        includeAssets: ['apple-touch-icon.png', 'icon.svg', 'icon-192.png', 'icon-512.png', 'icon.png'],
         manifest: {
           id: '/',
           name: 'Pro Field Camera',
-          short_name: 'FieldCamera',
+          short_name: 'Field Cam',
           description: 'Professional GPS map field camera for geotagged photo and video documentation with real-time metadata stamping, compass heading, OSM map overlay, and site survey tools.',
           start_url: '/',
           scope: '/',
           display: 'standalone',
-          background_color: '#000000',
-          theme_color: '#000000',
+          orientation: 'portrait-primary',
+          background_color: '#121212',
+          theme_color: '#121212',
           icons: [
             {
-              src: '/icon-192.png',
-              sizes: '192x192',
+              src: '/icon.png',
               type: 'image/png',
-              purpose: 'any',
-            },
-            {
-              src: '/icon-512.png',
               sizes: '512x512',
-              type: 'image/png',
-              purpose: 'any',
-            },
-            {
-              src: '/icon-512.png',
-              sizes: '512x512',
-              type: 'image/png',
-              purpose: 'maskable',
+              purpose: 'any maskable',
             },
           ],
         },
         workbox: {
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+          globIgnores: ['**/assets/aistudio/**'],
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         },
         devOptions: {

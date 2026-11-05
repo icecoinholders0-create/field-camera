@@ -7,8 +7,8 @@ interface CameraControlsProps {
   onSetCaptureMode: (mode: CaptureMode) => void;
   isRecording: boolean;
   onShutterPress: () => void;
-  phoneFolderName: string | null;
-  onConfigureStorage: () => void;
+  latestCapture: { url: string; type: 'photo' | 'video'; timestamp: number } | null;
+  onOpenGallery: () => void;
   onOpenQuickNote: () => void;
 }
 
@@ -17,8 +17,8 @@ export const CameraControls: React.FC<CameraControlsProps> = ({
   onSetCaptureMode,
   isRecording,
   onShutterPress,
-  phoneFolderName,
-  onConfigureStorage,
+  latestCapture,
+  onOpenGallery,
   onOpenQuickNote,
 }) => {
   return (
@@ -54,32 +54,19 @@ export const CameraControls: React.FC<CameraControlsProps> = ({
 
       {/* Primary Shutter Row */}
       <div className="w-full max-w-sm flex items-center justify-between px-2">
-        {/* Left slot: Direct Phone Storage Access */}
+        {/* Left slot: Latest Capture Thumbnail */}
         <div className="w-20 flex items-center justify-start">
-          <button
-            onClick={onConfigureStorage}
-            className="relative w-12 h-12 rounded-xl border border-white/25 bg-zinc-900/90 hover:bg-zinc-800 active:scale-95 transition-all flex flex-col items-center justify-center cursor-pointer shadow-md group"
-            title={
-              phoneFolderName
-                ? `Direct Phone Storage: [${phoneFolderName}]. Captures save straight here. Tap to change.`
-                : 'Grant phone storage access once to save photos directly to a device folder.'
-            }
+          <div
+            onClick={onOpenGallery}
+            className="w-12 h-12 rounded-xl overflow-hidden border-2 border-white/40 cursor-pointer shadow-lg"
+            title="Latest capture - tap to open gallery / save to device"
           >
-            {phoneFolderName ? (
-              <>
-                <FolderCheck className="w-5 h-5 text-emerald-400 group-hover:scale-110 transition-transform mb-0.5" />
-                <span className="text-[8px] font-bold text-emerald-300 truncate max-w-[42px]">
-                  {phoneFolderName}
-                </span>
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 border-2 border-black rounded-full" />
-              </>
+            {latestCapture ? (
+              <img src={latestCapture.url} alt="Latest capture" className="w-full h-full object-cover" />
             ) : (
-              <>
-                <Folder className="w-5 h-5 text-amber-400 group-hover:scale-110 transition-transform mb-0.5" />
-                <span className="text-[8px] font-semibold text-zinc-400">Phone</span>
-              </>
+              <div className="w-full h-full bg-black/60 flex items-center justify-center text-white/50 text-xs">Gallery</div>
             )}
-          </button>
+          </div>
         </div>
 
         {/* Center: Tactile Shutter Button */}

@@ -1,0 +1,9 @@
+{
+	"appId": "com.fieldcamera.app",
+	"appName": "Pro Field Camera",
+	"webDir": "dist",
+	"packageClassList": [
+		"CAPCameraPlugin",
+		"FilesystemPlugin"
+	]
+}
