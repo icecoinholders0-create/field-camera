@@ -149,41 +149,66 @@ export default function App() {
     }
   }, [geoData.latitude, geoData.longitude, geoData.isSimulated]);
 
-  // Live Hardware Geolocation Watcher
+  // Live Hardware Geolocation Watcher with High Accuracy & Standard Accuracy Fallback
   const geoWatchIdRef = useRef<number | null>(null);
   const startLiveGeolocation = useCallback(() => {
     if (!('geolocation' in navigator)) return;
 
     if (geoWatchIdRef.current !== null) {
       navigator.geolocation.clearWatch(geoWatchIdRef.current);
+      geoWatchIdRef.current = null;
     }
 
-    geoWatchIdRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const { latitude, longitude, altitude, accuracy } = pos.coords;
-        setGeoData((prev) => ({
-          ...prev,
-          latitude,
-          longitude,
-          altitude: altitude ?? prev.altitude ?? 0,
-          accuracy: accuracy ?? 5,
-          isLocked: true,
-          isSimulated: false,
-          lastUpdated: Date.now(),
-        }));
+    const applyCoords = (coords: GeolocationCoordinates) => {
+      const { latitude, longitude, altitude, accuracy } = coords;
+      setGeoData((prev) => ({
+        ...prev,
+        latitude,
+        longitude,
+        altitude: altitude ?? prev.altitude ?? 0,
+        accuracy: accuracy ?? 5,
+        isLocked: true,
+        isSimulated: false,
+        lastUpdated: Date.now(),
+      }));
+    };
+
+    // 1. Initial fast lock with fallback to standard accuracy
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        applyCoords(position.coords);
       },
-      (err) => {
-        console.warn('Geolocation error or permission denied:', err);
-        // Fallback to simulated location so UI stays functional
-        setGeoData((prev) => ({
-          ...prev,
-          isLocked: false,
-        }));
+      (error) => {
+        // If high accuracy times out, retry with low accuracy
+        console.warn('High accuracy GPS failed, falling back to standard accuracy:', error);
+        navigator.geolocation.getCurrentPosition(
+          (pos) => applyCoords(pos.coords),
+          (err) => {
+            console.error('Standard GPS failed:', err);
+            setGeoData((prev) => ({ ...prev, isLocked: false }));
+          },
+          { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 }
+        );
       },
       {
         enableHighAccuracy: true,
-        maximumAge: 3000,
-        timeout: 12000,
+        timeout: 8000, // Allow up to 8 seconds before falling back
+        maximumAge: 10000, // Accept cache up to 10s old for immediate lock
+      }
+    );
+
+    // 2. Continuous real-time GPS tracking
+    geoWatchIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        applyCoords(pos.coords);
+      },
+      (err) => {
+        console.warn('Geolocation watch error:', err);
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 5000,
+        timeout: 10000,
       }
     );
   }, []);

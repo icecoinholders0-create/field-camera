@@ -14421,9 +14421,12 @@ function App() {
 	const geoWatchIdRef = (0, import_react.useRef)(null);
 	const startLiveGeolocation = (0, import_react.useCallback)(() => {
 		if (!("geolocation" in navigator)) return;
-		if (geoWatchIdRef.current !== null) navigator.geolocation.clearWatch(geoWatchIdRef.current);
-		geoWatchIdRef.current = navigator.geolocation.watchPosition((pos) => {
-			const { latitude, longitude, altitude, accuracy } = pos.coords;
+		if (geoWatchIdRef.current !== null) {
+			navigator.geolocation.clearWatch(geoWatchIdRef.current);
+			geoWatchIdRef.current = null;
+		}
+		const applyCoords = (coords) => {
+			const { latitude, longitude, altitude, accuracy } = coords;
 			setGeoData((prev) => ({
 				...prev,
 				latitude,
@@ -14434,16 +14437,35 @@ function App() {
 				isSimulated: false,
 				lastUpdated: Date.now()
 			}));
-		}, (err) => {
-			console.warn("Geolocation error or permission denied:", err);
-			setGeoData((prev) => ({
-				...prev,
-				isLocked: false
-			}));
+		};
+		navigator.geolocation.getCurrentPosition((position) => {
+			applyCoords(position.coords);
+		}, (error) => {
+			console.warn("High accuracy GPS failed, falling back to standard accuracy:", error);
+			navigator.geolocation.getCurrentPosition((pos) => applyCoords(pos.coords), (err) => {
+				console.error("Standard GPS failed:", err);
+				setGeoData((prev) => ({
+					...prev,
+					isLocked: false
+				}));
+			}, {
+				enableHighAccuracy: false,
+				timeout: 1e4,
+				maximumAge: 3e4
+			});
 		}, {
 			enableHighAccuracy: true,
-			maximumAge: 3e3,
-			timeout: 12e3
+			timeout: 8e3,
+			maximumAge: 1e4
+		});
+		geoWatchIdRef.current = navigator.geolocation.watchPosition((pos) => {
+			applyCoords(pos.coords);
+		}, (err) => {
+			console.warn("Geolocation watch error:", err);
+		}, {
+			enableHighAccuracy: true,
+			maximumAge: 5e3,
+			timeout: 1e4
 		});
 	}, []);
 	(0, import_react.useEffect)(() => {
