@@ -13486,6 +13486,759 @@ var QuickNoteModal = ({ isOpen, onClose, currentNotes, onSaveNotes }) => {
 		})
 	});
 };
+// node_modules/@capacitor/core/dist/index.js
+/*! Capacitor: https://capacitorjs.com/ - MIT License */
+var ExceptionCode;
+(function(ExceptionCode) {
+	/**
+	* API is not implemented.
+	*
+	* This usually means the API can't be used because it is not implemented for
+	* the current platform.
+	*/
+	ExceptionCode["Unimplemented"] = "UNIMPLEMENTED";
+	/**
+	* API is not available.
+	*
+	* This means the API can't be used right now because:
+	*   - it is currently missing a prerequisite, such as network connectivity
+	*   - it requires a particular platform or browser version
+	*/
+	ExceptionCode["Unavailable"] = "UNAVAILABLE";
+})(ExceptionCode || (ExceptionCode = {}));
+var CapacitorException = class extends Error {
+	constructor(message, code, data) {
+		super(message);
+		this.message = message;
+		this.code = code;
+		this.data = data;
+	}
+};
+var getPlatformId = (win) => {
+	var _a, _b;
+	if (win === null || win === void 0 ? void 0 : win.androidBridge) return "android";
+	else if ((_b = (_a = win === null || win === void 0 ? void 0 : win.webkit) === null || _a === void 0 ? void 0 : _a.messageHandlers) === null || _b === void 0 ? void 0 : _b.bridge) return "ios";
+	else return "web";
+};
+var createCapacitor = (win) => {
+	const capCustomPlatform = win.CapacitorCustomPlatform || null;
+	const cap = win.Capacitor || {};
+	const Plugins = cap.Plugins = cap.Plugins || {};
+	const getPlatform = () => {
+		return capCustomPlatform !== null ? capCustomPlatform.name : getPlatformId(win);
+	};
+	const isNativePlatform = () => getPlatform() !== "web";
+	const isPluginAvailable = (pluginName) => {
+		const plugin = registeredPlugins.get(pluginName);
+		if (plugin === null || plugin === void 0 ? void 0 : plugin.platforms.has(getPlatform())) return true;
+		if (getPluginHeader(pluginName)) return true;
+		return false;
+	};
+	const getPluginHeader = (pluginName) => {
+		var _a;
+		return (_a = cap.PluginHeaders) === null || _a === void 0 ? void 0 : _a.find((h) => h.name === pluginName);
+	};
+	const handleError = (err) => win.console.error(err);
+	const registeredPlugins = /* @__PURE__ */ new Map();
+	const registerPlugin = (pluginName, jsImplementations = {}) => {
+		const registeredPlugin = registeredPlugins.get(pluginName);
+		if (registeredPlugin) {
+			console.warn(`Capacitor plugin "${pluginName}" already registered. Cannot register plugins twice.`);
+			return registeredPlugin.proxy;
+		}
+		const platform = getPlatform();
+		const pluginHeader = getPluginHeader(pluginName);
+		let jsImplementation;
+		const loadPluginImplementation = async () => {
+			if (!jsImplementation && platform in jsImplementations) jsImplementation = typeof jsImplementations[platform] === "function" ? jsImplementation = await jsImplementations[platform]() : jsImplementation = jsImplementations[platform];
+			else if (capCustomPlatform !== null && !jsImplementation && "web" in jsImplementations) jsImplementation = typeof jsImplementations["web"] === "function" ? jsImplementation = await jsImplementations["web"]() : jsImplementation = jsImplementations["web"];
+			return jsImplementation;
+		};
+		const createPluginMethod = (impl, prop) => {
+			var _a, _b;
+			if (pluginHeader) {
+				const methodHeader = pluginHeader === null || pluginHeader === void 0 ? void 0 : pluginHeader.methods.find((m) => prop === m.name);
+				if (methodHeader) {
+					if (methodHeader.rtype === "promise") return (options) => cap.nativePromise(pluginName, prop.toString(), options);
+					else return (options, callback) => cap.nativeCallback(pluginName, prop.toString(), options, callback);
+				} else if (impl) return (_a = impl[prop]) === null || _a === void 0 ? void 0 : _a.bind(impl);
+			} else if (impl) return (_b = impl[prop]) === null || _b === void 0 ? void 0 : _b.bind(impl);
+			else throw new CapacitorException(`"${pluginName}" plugin is not implemented on ${platform}`, ExceptionCode.Unimplemented);
+		};
+		const createPluginMethodWrapper = (prop) => {
+			let remove;
+			const wrapper = (...args) => {
+				const p = loadPluginImplementation().then((impl) => {
+					const fn = createPluginMethod(impl, prop);
+					if (fn) {
+						const p = fn(...args);
+						remove = p === null || p === void 0 ? void 0 : p.remove;
+						return p;
+					} else throw new CapacitorException(`"${pluginName}.${prop}()" is not implemented on ${platform}`, ExceptionCode.Unimplemented);
+				});
+				if (prop === "addListener") p.remove = async () => remove();
+				return p;
+			};
+			wrapper.toString = () => `${prop.toString()}() { [capacitor code] }`;
+			Object.defineProperty(wrapper, "name", {
+				value: prop,
+				writable: false,
+				configurable: false
+			});
+			return wrapper;
+		};
+		const addListener = createPluginMethodWrapper("addListener");
+		const removeListener = createPluginMethodWrapper("removeListener");
+		const addListenerNative = (eventName, callback) => {
+			const call = addListener({ eventName }, callback);
+			const remove = async () => {
+				const callbackId = await call;
+				removeListener({
+					eventName,
+					callbackId
+				}, callback);
+			};
+			const p = new Promise((resolve) => call.then(() => resolve({ remove })));
+			p.remove = async () => {
+				console.warn(`Using addListener() without 'await' is deprecated.`);
+				await remove();
+			};
+			return p;
+		};
+		const proxy = new Proxy({}, { get(_, prop) {
+			switch (prop) {
+				case "$$typeof": return;
+				case "toJSON": return () => ({});
+				case "addListener": return pluginHeader ? addListenerNative : addListener;
+				case "removeListener": return removeListener;
+				default: return createPluginMethodWrapper(prop);
+			}
+		} });
+		Plugins[pluginName] = proxy;
+		registeredPlugins.set(pluginName, {
+			name: pluginName,
+			proxy,
+			platforms: /* @__PURE__ */ new Set([...Object.keys(jsImplementations), ...pluginHeader ? [platform] : []])
+		});
+		return proxy;
+	};
+	if (!cap.convertFileSrc) cap.convertFileSrc = (filePath) => filePath;
+	cap.getPlatform = getPlatform;
+	cap.handleError = handleError;
+	cap.isNativePlatform = isNativePlatform;
+	cap.isPluginAvailable = isPluginAvailable;
+	cap.registerPlugin = registerPlugin;
+	cap.Exception = CapacitorException;
+	cap.DEBUG = !!cap.DEBUG;
+	cap.isLoggingEnabled = !!cap.isLoggingEnabled;
+	return cap;
+};
+var initCapacitorGlobal = (win) => win.Capacitor = createCapacitor(win);
+var Capacitor = /*#__PURE__*/ initCapacitorGlobal(typeof globalThis !== "undefined" ? globalThis : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : typeof global !== "undefined" ? global : {});
+var registerPlugin = Capacitor.registerPlugin;
+/**
+* Base class web plugins should extend.
+*/
+var WebPlugin = class {
+	constructor() {
+		this.listeners = {};
+		this.retainedEventArguments = {};
+		this.windowListeners = {};
+	}
+	addListener(eventName, listenerFunc) {
+		let firstListener = false;
+		if (!this.listeners[eventName]) {
+			this.listeners[eventName] = [];
+			firstListener = true;
+		}
+		this.listeners[eventName].push(listenerFunc);
+		const windowListener = this.windowListeners[eventName];
+		if (windowListener && !windowListener.registered) this.addWindowListener(windowListener);
+		if (firstListener) this.sendRetainedArgumentsForEvent(eventName);
+		const remove = async () => this.removeListener(eventName, listenerFunc);
+		return Promise.resolve({ remove });
+	}
+	async removeAllListeners() {
+		this.listeners = {};
+		for (const listener in this.windowListeners) this.removeWindowListener(this.windowListeners[listener]);
+		this.windowListeners = {};
+	}
+	notifyListeners(eventName, data, retainUntilConsumed) {
+		const listeners = this.listeners[eventName];
+		if (!listeners) {
+			if (retainUntilConsumed) {
+				let args = this.retainedEventArguments[eventName];
+				if (!args) args = [];
+				args.push(data);
+				this.retainedEventArguments[eventName] = args;
+			}
+			return;
+		}
+		listeners.forEach((listener) => listener(data));
+	}
+	hasListeners(eventName) {
+		var _a;
+		return !!((_a = this.listeners[eventName]) === null || _a === void 0 ? void 0 : _a.length);
+	}
+	registerWindowListener(windowEventName, pluginEventName) {
+		this.windowListeners[pluginEventName] = {
+			registered: false,
+			windowEventName,
+			pluginEventName,
+			handler: (event) => {
+				this.notifyListeners(pluginEventName, event);
+			}
+		};
+	}
+	unimplemented(msg = "not implemented") {
+		return new Capacitor.Exception(msg, ExceptionCode.Unimplemented);
+	}
+	unavailable(msg = "not available") {
+		return new Capacitor.Exception(msg, ExceptionCode.Unavailable);
+	}
+	async removeListener(eventName, listenerFunc) {
+		const listeners = this.listeners[eventName];
+		if (!listeners) return;
+		const index = listeners.indexOf(listenerFunc);
+		if (index !== -1) this.listeners[eventName].splice(index, 1);
+		if (!this.listeners[eventName].length) this.removeWindowListener(this.windowListeners[eventName]);
+	}
+	addWindowListener(handle) {
+		window.addEventListener(handle.windowEventName, handle.handler);
+		handle.registered = true;
+	}
+	removeWindowListener(handle) {
+		if (!handle) return;
+		window.removeEventListener(handle.windowEventName, handle.handler);
+		handle.registered = false;
+	}
+	sendRetainedArgumentsForEvent(eventName) {
+		const args = this.retainedEventArguments[eventName];
+		if (!args) return;
+		delete this.retainedEventArguments[eventName];
+		args.forEach((arg) => {
+			this.notifyListeners(eventName, arg);
+		});
+	}
+};
+/******** END WEB VIEW PLUGIN ********/
+/******** COOKIES PLUGIN ********/
+/**
+* Safely web encode a string value (inspired by js-cookie)
+* @param str The string value to encode
+*/
+var encode = (str) => encodeURIComponent(str).replace(/%(2[346B]|5E|60|7C)/g, decodeURIComponent).replace(/[()]/g, escape);
+/**
+* Safely web decode a string value (inspired by js-cookie)
+* @param str The string value to decode
+*/
+var decode = (str) => str.replace(/(%[\dA-F]{2})+/gi, decodeURIComponent);
+var CapacitorCookiesPluginWeb = class extends WebPlugin {
+	async getCookies() {
+		const cookies = document.cookie;
+		const cookieMap = {};
+		cookies.split(";").forEach((cookie) => {
+			if (cookie.length <= 0) return;
+			let [key, value] = cookie.replace(/=/, "CAP_COOKIE").split("CAP_COOKIE");
+			key = decode(key).trim();
+			value = decode(value).trim();
+			cookieMap[key] = value;
+		});
+		return cookieMap;
+	}
+	async setCookie(options) {
+		try {
+			const encodedKey = encode(options.key);
+			const encodedValue = encode(options.value);
+			const expires = options.expires ? `; expires=${options.expires.replace("expires=", "")}` : "";
+			const path = (options.path || "/").replace("path=", "");
+			const domain = options.url != null && options.url.length > 0 ? `domain=${options.url}` : "";
+			document.cookie = `${encodedKey}=${encodedValue || ""}${expires}; path=${path}; ${domain};`;
+		} catch (error) {
+			return Promise.reject(error);
+		}
+	}
+	async deleteCookie(options) {
+		try {
+			document.cookie = `${options.key}=; Max-Age=0`;
+		} catch (error) {
+			return Promise.reject(error);
+		}
+	}
+	async clearCookies() {
+		try {
+			const cookies = document.cookie.split(";") || [];
+			for (const cookie of cookies) document.cookie = cookie.replace(/^ +/, "").replace(/=.*/, `=;expires=${(/* @__PURE__ */ new Date()).toUTCString()};path=/`);
+		} catch (error) {
+			return Promise.reject(error);
+		}
+	}
+	async clearAllCookies() {
+		try {
+			await this.clearCookies();
+		} catch (error) {
+			return Promise.reject(error);
+		}
+	}
+};
+registerPlugin("CapacitorCookies", { web: () => new CapacitorCookiesPluginWeb() });
+/**
+* Read in a Blob value and return it as a base64 string
+* @param blob The blob value to convert to a base64 string
+*/
+var readBlobAsBase64 = async (blob) => new Promise((resolve, reject) => {
+	const reader = new FileReader();
+	reader.onload = () => {
+		const base64String = reader.result;
+		resolve(base64String.indexOf(",") >= 0 ? base64String.split(",")[1] : base64String);
+	};
+	reader.onerror = (error) => reject(error);
+	reader.readAsDataURL(blob);
+});
+/**
+* Normalize an HttpHeaders map by lowercasing all of the values
+* @param headers The HttpHeaders object to normalize
+*/
+var normalizeHttpHeaders = (headers = {}) => {
+	const originalKeys = Object.keys(headers);
+	return Object.keys(headers).map((k) => k.toLocaleLowerCase()).reduce((acc, key, index) => {
+		acc[key] = headers[originalKeys[index]];
+		return acc;
+	}, {});
+};
+/**
+* Builds a string of url parameters that
+* @param params A map of url parameters
+* @param shouldEncode true if you should encodeURIComponent() the values (true by default)
+*/
+var buildUrlParams = (params, shouldEncode = true) => {
+	if (!params) return null;
+	return Object.entries(params).reduce((accumulator, entry) => {
+		const [key, value] = entry;
+		let encodedValue;
+		let item;
+		if (Array.isArray(value)) {
+			item = "";
+			value.forEach((str) => {
+				encodedValue = shouldEncode ? encodeURIComponent(str) : str;
+				item += `${key}=${encodedValue}&`;
+			});
+			item.slice(0, -1);
+		} else {
+			encodedValue = shouldEncode ? encodeURIComponent(value) : value;
+			item = `${key}=${encodedValue}`;
+		}
+		return `${accumulator}&${item}`;
+	}, "").substr(1);
+};
+/**
+* Build the RequestInit object based on the options passed into the initial request
+* @param options The Http plugin options
+* @param extra Any extra RequestInit values
+*/
+var buildRequestInit = (options, extra = {}) => {
+	const output = Object.assign({
+		method: options.method || "GET",
+		headers: options.headers
+	}, extra);
+	const type = normalizeHttpHeaders(options.headers)["content-type"] || "";
+	if (typeof options.data === "string") output.body = options.data;
+	else if (type.includes("application/x-www-form-urlencoded")) {
+		const params = new URLSearchParams();
+		for (const [key, value] of Object.entries(options.data || {})) params.set(key, value);
+		output.body = params.toString();
+	} else if (type.includes("multipart/form-data") || options.data instanceof FormData) {
+		const form = new FormData();
+		if (options.data instanceof FormData) options.data.forEach((value, key) => {
+			form.append(key, value);
+		});
+		else for (const key of Object.keys(options.data)) form.append(key, options.data[key]);
+		output.body = form;
+		const headers = new Headers(output.headers);
+		headers.delete("content-type");
+		output.headers = headers;
+	} else if (type.includes("application/json") || typeof options.data === "object") output.body = JSON.stringify(options.data);
+	return output;
+};
+var CapacitorHttpPluginWeb = class extends WebPlugin {
+	/**
+	* Perform an Http request given a set of options
+	* @param options Options to build the HTTP request
+	*/
+	async request(options) {
+		const requestInit = buildRequestInit(options, options.webFetchExtra);
+		const urlParams = buildUrlParams(options.params, options.shouldEncodeUrlParams);
+		const url = urlParams ? `${options.url}?${urlParams}` : options.url;
+		const response = await fetch(url, requestInit);
+		const contentType = response.headers.get("content-type") || "";
+		let { responseType = "text" } = response.ok ? options : {};
+		if (contentType.includes("application/json")) responseType = "json";
+		let data;
+		let blob;
+		switch (responseType) {
+			case "arraybuffer":
+			case "blob":
+				blob = await response.blob();
+				data = await readBlobAsBase64(blob);
+				break;
+			case "json":
+				data = await response.json();
+				break;
+			default: data = await response.text();
+		}
+		const headers = {};
+		response.headers.forEach((value, key) => {
+			headers[key] = value;
+		});
+		return {
+			data,
+			headers,
+			status: response.status,
+			url: response.url
+		};
+	}
+	/**
+	* Perform an Http GET request given a set of options
+	* @param options Options to build the HTTP request
+	*/
+	async get(options) {
+		return this.request(Object.assign(Object.assign({}, options), { method: "GET" }));
+	}
+	/**
+	* Perform an Http POST request given a set of options
+	* @param options Options to build the HTTP request
+	*/
+	async post(options) {
+		return this.request(Object.assign(Object.assign({}, options), { method: "POST" }));
+	}
+	/**
+	* Perform an Http PUT request given a set of options
+	* @param options Options to build the HTTP request
+	*/
+	async put(options) {
+		return this.request(Object.assign(Object.assign({}, options), { method: "PUT" }));
+	}
+	/**
+	* Perform an Http PATCH request given a set of options
+	* @param options Options to build the HTTP request
+	*/
+	async patch(options) {
+		return this.request(Object.assign(Object.assign({}, options), { method: "PATCH" }));
+	}
+	/**
+	* Perform an Http DELETE request given a set of options
+	* @param options Options to build the HTTP request
+	*/
+	async delete(options) {
+		return this.request(Object.assign(Object.assign({}, options), { method: "DELETE" }));
+	}
+};
+registerPlugin("CapacitorHttp", { web: () => new CapacitorHttpPluginWeb() });
+/******** END HTTP PLUGIN ********/
+/******** SYSTEM BARS PLUGIN ********/
+/**
+* Available status bar styles.
+*/
+var SystemBarsStyle;
+(function(SystemBarsStyle) {
+	/**
+	* Light system bar content on a dark background.
+	*
+	* @since 8.0.0
+	*/
+	SystemBarsStyle["Dark"] = "DARK";
+	/**
+	* For dark system bar content on a light background.
+	*
+	* @since 8.0.0
+	*/
+	SystemBarsStyle["Light"] = "LIGHT";
+	/**
+	* The style is based on the device appearance or the underlying content.
+	* If the device is using Dark mode, the system bars content will be light.
+	* If the device is using Light mode, the system bars content will be dark.
+	*
+	* @since 8.0.0
+	*/
+	SystemBarsStyle["Default"] = "DEFAULT";
+})(SystemBarsStyle || (SystemBarsStyle = {}));
+/**
+* Available system bar types.
+*/
+var SystemBarType;
+(function(SystemBarType) {
+	/**
+	* The top status bar on both Android and iOS.
+	*
+	* @since 8.0.0
+	*/
+	SystemBarType["StatusBar"] = "StatusBar";
+	/**
+	* The navigation bar (or gesture bar on iOS) on both Android and iOS.
+	*
+	* @since 8.0.0
+	*/
+	SystemBarType["NavigationBar"] = "NavigationBar";
+})(SystemBarType || (SystemBarType = {}));
+var SystemBarsPluginWeb = class extends WebPlugin {
+	async setStyle() {
+		this.unavailable("not available for web");
+	}
+	async setAnimation() {
+		this.unavailable("not available for web");
+	}
+	async show() {
+		this.unavailable("not available for web");
+	}
+	async hide() {
+		this.unavailable("not available for web");
+	}
+};
+registerPlugin("SystemBars", { web: () => new SystemBarsPluginWeb() });
+// node_modules/@capacitor/synapse/dist/synapse.mjs
+function s(t) {
+	t.CapacitorUtils.Synapse = new Proxy({}, { get(e, n) {
+		return new Proxy({}, { get(w, o) {
+			return (c, p, r) => {
+				const i = t.Capacitor.Plugins[n];
+				if (i === void 0) {
+					r(/* @__PURE__ */ new Error(`Capacitor plugin ${n} not found`));
+					return;
+				}
+				if (typeof i[o] != "function") {
+					r(/* @__PURE__ */ new Error(`Method ${o} not found in Capacitor plugin ${n}`));
+					return;
+				}
+				(async () => {
+					try {
+						p(await i[o](c));
+					} catch (a) {
+						r(a);
+					}
+				})();
+			};
+		} });
+	} });
+}
+function u(t) {
+	t.CapacitorUtils.Synapse = new Proxy({}, { get(e, n) {
+		return t.cordova.plugins[n];
+	} });
+}
+function f(t = !1) {
+	typeof window > "u" || (window.CapacitorUtils = window.CapacitorUtils || {}, window.Capacitor !== void 0 && !t ? s(window) : window.cordova !== void 0 && u(window));
+}
+// node_modules/@capacitor/filesystem/dist/esm/definitions.js
+var Directory;
+(function(Directory) {
+	/**
+	* The Documents directory.
+	* On iOS it's the app's documents directory.
+	* Use this directory to store user-generated content.
+	* On Android it's the Public Documents folder, so it's accessible from other apps.
+	* It's not accessible on Android 10 unless the app enables legacy External Storage
+	* by adding `android:requestLegacyExternalStorage="true"` in the `application` tag
+	* in the `AndroidManifest.xml`.
+	* On Android 11 or newer the app can only access the files/folders the app created.
+	*
+	* @since 1.0.0
+	*/
+	Directory["Documents"] = "DOCUMENTS";
+	/**
+	* The Data directory.
+	* On iOS it will use the Documents directory.
+	* On Android it's the directory holding application files.
+	* Files will be deleted when the application is uninstalled.
+	*
+	* @since 1.0.0
+	*/
+	Directory["Data"] = "DATA";
+	/**
+	* The Library directory.
+	* On iOS it will use the Library directory.
+	* On Android it's the directory holding application files.
+	* Files will be deleted when the application is uninstalled.
+	*
+	* @since 1.1.0
+	*/
+	Directory["Library"] = "LIBRARY";
+	/**
+	* The Cache directory.
+	* Can be deleted in cases of low memory, so use this directory to write app-specific files.
+	* that your app can re-create easily.
+	*
+	* @since 1.0.0
+	*/
+	Directory["Cache"] = "CACHE";
+	/**
+	* The external directory.
+	* On iOS it will use the Documents directory.
+	* On Android it's the directory on the primary shared/external
+	* storage device where the application can place persistent files it owns.
+	* These files are internal to the applications, and not typically visible
+	* to the user as media.
+	* Files will be deleted when the application is uninstalled.
+	*
+	* @since 1.0.0
+	*/
+	Directory["External"] = "EXTERNAL";
+	/**
+	* The external storage directory.
+	* On iOS it will use the Documents directory.
+	* On Android it's the primary shared/external storage directory.
+	* It's not accessible on Android 10 unless the app enables legacy External Storage
+	* by adding `android:requestLegacyExternalStorage="true"` in the `application` tag
+	* in the `AndroidManifest.xml`.
+	* It's not accessible on Android 11 or newer.
+	*
+	* @since 1.0.0
+	*/
+	Directory["ExternalStorage"] = "EXTERNAL_STORAGE";
+	/**
+	* The external cache directory.
+	* On iOS it will use the Documents directory.
+	* On Android it's the primary shared/external cache.
+	*
+	* @since 7.1.0
+	*/
+	Directory["ExternalCache"] = "EXTERNAL_CACHE";
+	/**
+	* The Library directory without cloud backup. Used in iOS.
+	* On Android it's the directory holding application files.
+	*
+	* @since 7.1.0
+	*/
+	Directory["LibraryNoCloud"] = "LIBRARY_NO_CLOUD";
+	/**
+	* A temporary directory for iOS.
+	* On Android it's the directory holding the application cache.
+	*
+	* @since 7.1.0
+	*/
+	Directory["Temporary"] = "TEMPORARY";
+})(Directory || (Directory = {}));
+var Encoding;
+(function(Encoding) {
+	/**
+	* Eight-bit UCS Transformation Format
+	*
+	* @since 1.0.0
+	*/
+	Encoding["UTF8"] = "utf8";
+	/**
+	* Seven-bit ASCII, a.k.a. ISO646-US, a.k.a. the Basic Latin block of the
+	* Unicode character set
+	* This encoding is only supported on Android.
+	*
+	* @since 1.0.0
+	*/
+	Encoding["ASCII"] = "ascii";
+	/**
+	* Sixteen-bit UCS Transformation Format, byte order identified by an
+	* optional byte-order mark
+	* This encoding is only supported on Android.
+	*
+	* @since 1.0.0
+	*/
+	Encoding["UTF16"] = "utf16";
+})(Encoding || (Encoding = {}));
+// \0vite/preload-helper.js
+var scriptRel = "modulepreload";
+var assetsURL = function(dep) {
+	return "/" + dep;
+};
+var seen = {};
+var isCssPreloadUrl = function isCssPreloadUrl(url) {
+	return url.pathname.endsWith(".css");
+};
+var preloadOnce = function preloadOnce(seen, href, preload) {
+	if (href in seen) return seen[href];
+	const promise = preload();
+	if (!promise) {
+		seen[href] = void 0;
+		return;
+	}
+	const preloadPromise = promise.then(() => {
+		seen[href] = void 0;
+	}, (err) => {
+		seen[href] = void 0;
+		throw err;
+	});
+	seen[href] = preloadPromise;
+	return preloadPromise;
+};
+var __vitePreload = function preload(baseModule, deps, importerUrl) {
+	let promise = Promise.resolve();
+	if (deps && deps.length > 0) {
+		let preloadedHrefs;
+		const cspNonceMeta = document.querySelector("meta[property=csp-nonce]");
+		const cspNonce = cspNonceMeta?.nonce || cspNonceMeta?.getAttribute("nonce");
+		function allSettled(promises) {
+			return Promise.all(promises.map((p) => Promise.resolve(p).then((value) => ({
+				status: "fulfilled",
+				value
+			}), (reason) => ({
+				status: "rejected",
+				reason
+			}))));
+		}
+		function importMetaResolve(specifier) {
+			if (import.meta.resolve) return new URL(import.meta.resolve(specifier));
+			return new URL(
+				specifier,
+				/** #__KEEP__ */
+				import.meta.url
+			);
+		}
+		promise = allSettled(deps.map((depString) => {
+			depString = assetsURL(depString, importerUrl);
+			const dep = importMetaResolve(depString);
+			const isCss = isCssPreloadUrl(dep);
+			return preloadOnce(seen, dep.href, () => {
+				if (preloadedHrefs === void 0) {
+					preloadedHrefs = {
+						all: /* @__PURE__ */ new Set(),
+						styles: /* @__PURE__ */ new Set()
+					};
+					const links = document.getElementsByTagName("link");
+					for (let i = links.length - 1; i >= 0; i--) {
+						const link = links[i];
+						preloadedHrefs.all.add(link.href);
+						if (link.rel === "stylesheet") preloadedHrefs.styles.add(link.href);
+					}
+				}
+				if ((isCss ? preloadedHrefs.styles : preloadedHrefs.all).has(dep.href)) return;
+				const link = document.createElement("link");
+				link.rel = isCss ? "stylesheet" : scriptRel;
+				if (!isCss) link.as = "script";
+				link.crossOrigin = "";
+				link.href = dep.href;
+				if (cspNonce) link.setAttribute("nonce", cspNonce);
+				document.head.appendChild(link);
+				if (isCss) return new Promise((res, rej) => {
+					link.addEventListener("load", res);
+					link.addEventListener("error", () => rej(/* @__PURE__ */ new Error(`Unable to preload CSS for ${dep}`)));
+				});
+			});
+		}).filter((p) => p !== void 0));
+	}
+	function handlePreloadError(err) {
+		const e = new Event("vite:preloadError", { cancelable: true });
+		e.payload = err;
+		window.dispatchEvent(e);
+		if (!e.defaultPrevented) throw err;
+	}
+	return promise.then((res) => {
+		for (const item of res || []) {
+			if (item.status !== "rejected") continue;
+			handlePreloadError(item.reason);
+		}
+		return baseModule().catch(handlePreloadError);
+	});
+};
+// node_modules/@capacitor/filesystem/dist/esm/index.js
+var Filesystem = registerPlugin("Filesystem", { web: () => __vitePreload(() => import("./web-CxJj4LWJ.js").then((m) => new m.FilesystemWeb()), []) });
+f();
 // src/utils/deviceStorage.ts
 /**
 * Direct Phone & Device Storage Manager
@@ -13618,14 +14371,28 @@ async function requestPhoneStorageFolder() {
 	}
 }
 async function saveToNativeDevice(blob, filename) {
-	const file = new File([blob], filename, { type: blob.type });
-	if (navigator.canShare && navigator.canShare({ files: [file] })) try {
-		await navigator.share({
-			files: [file],
-			title: "Save Capture"
+	if (Capacitor.isNativePlatform()) try {
+		const reader = new FileReader();
+		const base64Promise = new Promise((resolve, reject) => {
+			reader.onloadend = () => {
+				const res = reader.result;
+				resolve(res.split(",")[1]);
+			};
+			reader.onerror = reject;
 		});
+		reader.readAsDataURL(blob);
+		const base64Data = await base64Promise;
+		await Filesystem.writeFile({
+			path: filename,
+			data: base64Data,
+			directory: Directory.Documents,
+			recursive: true
+		});
+		console.log("Saved directly to native device storage:", filename);
 		return;
-	} catch (err) {}
+	} catch (err) {
+		console.warn("Native filesystem save failed, falling back to download:", err);
+	}
 	const url = URL.createObjectURL(blob);
 	const a = document.createElement("a");
 	a.href = url;
@@ -13644,7 +14411,7 @@ async function saveStraightToPhone(blob, filename) {
 	await saveToNativeDevice(blob, filename);
 	return {
 		success: true,
-		method: "share",
+		method: "download",
 		folderName: "Phone Gallery"
 	};
 }
@@ -14343,6 +15110,16 @@ function App() {
 	const [phoneFolderName, setPhoneFolderName] = (0, import_react.useState)(null);
 	const [isStorageModalOpen, setIsStorageModalOpen] = (0, import_react.useState)(false);
 	const [latestCapture, setLatestCapture] = (0, import_react.useState)(null);
+	const [toastMessage, setToastMessage] = (0, import_react.useState)(null);
+	const toastTimerRef = (0, import_react.useRef)(null);
+	const showToast = (0, import_react.useCallback)((message) => {
+		if (toastTimerRef.current !== null) clearTimeout(toastTimerRef.current);
+		setToastMessage(message);
+		toastTimerRef.current = window.setTimeout(() => {
+			setToastMessage(null);
+			toastTimerRef.current = null;
+		}, 1e3);
+	}, []);
 	const [isSettingsOpen, setIsSettingsOpen] = (0, import_react.useState)(false);
 	const [isQuickNoteOpen, setIsQuickNoteOpen] = (0, import_react.useState)(false);
 	const [isGoogleMapsOpen, setIsGoogleMapsOpen] = (0, import_react.useState)(false);
@@ -14614,13 +15391,15 @@ function App() {
 	const handleCaptureComplete = async (blob, type) => {
 		const cleanSite = (stampConfig.siteId || "SITE").replace(/[^a-zA-Z0-9_-]/g, "_");
 		const dateStr = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
-		await saveStraightToPhone(blob, `${type === "photo" ? "Photo" : "Video"}_${cleanSite}_${dateStr}_${Date.now()}.${type === "photo" ? "jpg" : "mp4"}`);
-		const previewUrl = URL.createObjectURL(blob);
+		const ext = type === "photo" ? "jpg" : "mp4";
+		await saveStraightToPhone(blob, `${type === "photo" ? "Photo" : "Video"}_${cleanSite}_${dateStr}_${Date.now()}.${ext}`);
+		const url = URL.createObjectURL(blob);
 		setLatestCapture({
-			url: previewUrl,
+			url,
 			type,
 			timestamp: Date.now()
 		});
+		showToast(`${type === "photo" ? "Photo" : "Video"} Saved to Gallery`);
 	};
 	const handleCapturePhoto = async () => {
 		const video = videoRef.current;
@@ -14774,6 +15553,13 @@ function App() {
 						className: "w-full h-full object-cover"
 					}),
 					isFlashing && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-0 bg-white pointer-events-none animate-shutter-flash z-30" }),
+					toastMessage && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: "absolute top-20 left-1/2 -translate-x-1/2 z-40 pointer-events-none animate-in fade-in zoom-in-95 duration-150",
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center gap-2 px-4 py-2 rounded-full bg-black/85 backdrop-blur-md border border-white/20 text-white shadow-2xl text-xs font-bold tracking-wide",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "w-4 h-4 text-emerald-400 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: toastMessage })]
+						})
+					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CameraHUD, {
 						geoData,
 						stampConfig,
@@ -14801,9 +15587,15 @@ function App() {
 				onShutterPress: handleShutterPress,
 				latestCapture,
 				onOpenGallery: () => {
-					if (latestCapture) fetch(latestCapture.url).then((res) => res.blob()).then((blob) => {
-						saveStraightToPhone(blob, `FieldCamera_${Date.now()}.${latestCapture.type === "photo" ? "jpg" : "mp4"}`);
-					});
+					if (latestCapture) {
+						const a = document.createElement("a");
+						a.href = latestCapture.url;
+						a.download = `FieldCamera_${Date.now()}.${latestCapture.type === "photo" ? "jpg" : "mp4"}`;
+						document.body.appendChild(a);
+						a.click();
+						document.body.removeChild(a);
+						showToast(`${latestCapture.type === "photo" ? "Photo" : "Video"} Saved to Gallery`);
+					}
 				},
 				onOpenQuickNote: () => setIsQuickNoteOpen(true)
 			}),
@@ -14850,3 +15642,4 @@ if ("serviceWorker" in navigator) window.addEventListener("load", () => {
 	navigator.serviceWorker.register("/sw.js").then((reg) => console.log("Service Worker registered!", reg)).catch((err) => console.log("Service Worker registration failed:", err));
 });
 (0, import_client.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, import_jsx_runtime.jsx)(App, {}));
+export { WebPlugin as n, buildRequestInit as r, Encoding as t };

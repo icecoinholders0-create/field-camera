@@ -10,6 +10,9 @@
  * it seamlessly saves directly via browser device download.
  */
 
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+
 const DB_NAME = 'FieldCameraStorageDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'handles';
@@ -142,22 +145,34 @@ export async function requestPhoneStorageFolder(): Promise<{
 }
 
 export async function saveToNativeDevice(blob: Blob, filename: string) {
-  const file = new File([blob], filename, { type: blob.type });
-
-  // 1. Mobile Native Share Sheet (Save Image / Save Video directly to Photos)
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+  // 1. If running as a native Android or iOS app via Capacitor, save directly to device documents/storage
+  if (Capacitor.isNativePlatform()) {
     try {
-      await navigator.share({
-        files: [file],
-        title: 'Save Capture',
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => {
+          const res = reader.result as string;
+          resolve(res.split(',')[1]);
+        };
+        reader.onerror = reject;
       });
+      reader.readAsDataURL(blob);
+      const base64Data = await base64Promise;
+
+      await Filesystem.writeFile({
+        path: filename,
+        data: base64Data,
+        directory: Directory.Documents,
+        recursive: true,
+      });
+      console.log('Saved directly to native device storage:', filename);
       return;
     } catch (err) {
-      // User cancelled share dialog
+      console.warn('Native filesystem save failed, falling back to download:', err);
     }
   }
 
-  // 2. Direct File Download (for PWA / Standalone browser fallback)
+  // 2. Direct programmatic file download to device storage/gallery without share dialog
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -176,7 +191,7 @@ export async function saveToNativeDevice(blob: Blob, filename: string) {
 export async function saveStraightToPhone(
   blob: Blob,
   filename: string
-): Promise<{ success: boolean; method: 'share' | 'download'; folderName?: string }> {
+): Promise<{ success: boolean; method: 'download'; folderName?: string }> {
   await saveToNativeDevice(blob, filename);
-  return { success: true, method: 'share', folderName: 'Phone Gallery' };
+  return { success: true, method: 'download', folderName: 'Phone Gallery' };
 }

@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { CheckCircle2 } from 'lucide-react';
 import { CameraHUD } from './components/CameraHUD';
 import { CameraControls } from './components/CameraControls';
 import { SettingsModal } from './components/SettingsModal';
@@ -52,6 +53,21 @@ export default function App() {
   const [phoneFolderName, setPhoneFolderName] = useState<string | null>(null);
   const [isStorageModalOpen, setIsStorageModalOpen] = useState<boolean>(false);
   const [latestCapture, setLatestCapture] = useState<{ url: string; type: 'photo' | 'video'; timestamp: number } | null>(null);
+
+  // Quick 1-second visual toast notification
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
+
+  const showToast = useCallback((message: string) => {
+    if (toastTimerRef.current !== null) {
+      clearTimeout(toastTimerRef.current);
+    }
+    setToastMessage(message);
+    toastTimerRef.current = window.setTimeout(() => {
+      setToastMessage(null);
+      toastTimerRef.current = null;
+    }, 1000);
+  }, []);
 
   // Modals
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
@@ -400,26 +416,27 @@ export default function App() {
     setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
   };
 
-  // Save capture directly into phone storage (or device folder if granted) and update latest capture thumbnail
+  // Save capture directly into phone storage and update latest capture thumbnail
   const handleCaptureComplete = async (blob: Blob, type: 'photo' | 'video') => {
     const cleanSite = (stampConfig.siteId || 'SITE').replace(/[^a-zA-Z0-9_-]/g, '_');
     const dateStr = new Date().toISOString().slice(0, 10);
-    const filename = `${type === 'photo' ? 'Photo' : 'Video'}_${cleanSite}_${dateStr}_${Date.now()}.${
-      type === 'photo' ? 'jpg' : 'mp4'
-    }`;
+    const ext = type === 'photo' ? 'jpg' : 'mp4';
+    const filename = `${type === 'photo' ? 'Photo' : 'Video'}_${cleanSite}_${dateStr}_${Date.now()}.${ext}`;
 
-    // 1. Save to native storage / device download
+    // Write file directly into phone storage (natively via Capacitor or browser download fallback)
     await saveStraightToPhone(blob, filename);
 
-    // 2. Immediately create a local preview URL for the thumbnail
-    const previewUrl = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
 
-    // 3. Update app state so bottom-left thumbnail shows this latest capture
+    // Update bottom-left latest capture thumbnail
     setLatestCapture({
-      url: previewUrl,
+      url,
       type: type,
       timestamp: Date.now(),
     });
+
+    // Show 1-second visual toast notification over viewfinder
+    showToast(`${type === 'photo' ? 'Photo' : 'Video'} Saved to Gallery`);
   };
 
   // PHOTO CAPTURE HANDLER
@@ -435,6 +452,7 @@ export default function App() {
     const width = video.videoWidth || 1280;
     const height = video.videoHeight || 720;
 
+    // 1. Instantly generate the stamped image canvas
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
@@ -457,7 +475,7 @@ export default function App() {
       dateTimeStr: currentFormattedTime,
     });
 
-    // Generate JPEG blob and save straight to phone
+    // Generate JPEG blob and save straight to phone via handleCaptureComplete
     canvas.toBlob(
       async (blob) => {
         if (!blob) return;
@@ -642,6 +660,16 @@ export default function App() {
           <div className="absolute inset-0 bg-white pointer-events-none animate-shutter-flash z-30" />
         )}
 
+        {/* Quick 1-Second Visual Toast Notification Overlay */}
+        {toastMessage && (
+          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-40 pointer-events-none animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-black/85 backdrop-blur-md border border-white/20 text-white shadow-2xl text-xs font-bold tracking-wide">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{toastMessage}</span>
+            </div>
+          </div>
+        )}
+
         {/* Camera HUD (Top Status, Reticle, and Live Watermark Overlay) */}
         <CameraHUD
           geoData={geoData}
@@ -672,15 +700,14 @@ export default function App() {
         latestCapture={latestCapture}
         onOpenGallery={() => {
           if (latestCapture) {
-            // Re-trigger native share / gallery export on thumbnail click
-            fetch(latestCapture.url)
-              .then((res) => res.blob())
-              .then((blob) => {
-                saveStraightToPhone(
-                  blob,
-                  `FieldCamera_${Date.now()}.${latestCapture.type === 'photo' ? 'jpg' : 'mp4'}`
-                );
-              });
+            // Direct download of latest capture without share modal
+            const a = document.createElement('a');
+            a.href = latestCapture.url;
+            a.download = `FieldCamera_${Date.now()}.${latestCapture.type === 'photo' ? 'jpg' : 'mp4'}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            showToast(`${latestCapture.type === 'photo' ? 'Photo' : 'Video'} Saved to Gallery`);
           }
         }}
         onOpenQuickNote={() => setIsQuickNoteOpen(true)}
